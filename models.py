@@ -67,7 +67,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # v: [batch_size, n_head, seq_len, dimension]
         output = torch.matmul(attn_probs, v) # 각 단어의 attention 값을 담은 value
         # output: [batch_size, n_head, seq_len, dimension]
-        return output
+        return output, attn_probs
     
     def combine_heads(self, x):
         batch_size, _, seq_length, d_k = x.size()
@@ -78,12 +78,12 @@ class MultiHeadAttentionLayer(nn.Module):
         key = self.split_heads(self.W_k(key))
         value = self.split_heads(self.W_v(value))
         # query와 value를 내적한 값의 scaled된 attention 값
-        attn_output = self.scaled_dot_product_attention(query, key, value, mask)
+        attn_output, attention = self.scaled_dot_product_attention(query, key, value, mask)
         # attn_output: [batch_size, n_head, seq_len, dimension]
         # self.combine_heads(attn_output) -> [batch_size, seq_len, n_head x dimension]
         output = self.W_o(self.combine_heads(attn_output))
         # output: [batch_size, seq_len, d_model]
-        return output
+        return output, attention
 
 class PositionwiseFeedForward(nn.Module):
     def __init__(self, d_model, pff_dim, dropout):
@@ -112,7 +112,7 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x, mask):
         # x: [batch_size, seq_len, d_model]
-        attn_output = self.self_attn(x, x, x, mask)
+        attn_output, _ = self.self_attn(x, x, x, mask)
         # attn_output: [batch_size, seq_len, d_model]
         x = self.norm1(x + self.dropout(attn_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
@@ -135,18 +135,18 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, enc_output, src_mask, trg_mask):
         # x: [batch_size, seq_len, d_model]
-        attn_output = self.self_attn(x, x, x, trg_mask)
+        attn_output, _ = self.self_attn(x, x, x, trg_mask)
         # attn_output: [batch_size, seq_len, d_model]
         x = self.norm1(x + self.dropout(attn_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
-        attn_output = self.cross_attn(x, enc_output, enc_output, src_mask)
+        attn_output, attention = self.cross_attn(x, enc_output, enc_output, src_mask)
         x = self.norm2(x + self.dropout(attn_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
         ff_output = self.feed_forward(x)
         # ff_output: [batch_size, seq_len, d_model]
         x = self.norm3(x + self.dropout(ff_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
-        return x
+        return x, attention
 
 class Transformer(nn.Module):
     def __init__(self, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, device):
@@ -163,32 +163,51 @@ class Transformer(nn.Module):
     
         self.device = device
 
-    def generate_mask(self, src, trg):
-        # src_mask: [batch_size, 1, 1, seq_len]
-        src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
-        # trg_mask: [batch_size, 1, seq_len, 1]
-        trg_mask = (trg != 0).unsqueeze(1).unsqueeze(3).to(self.device)
-        seq_length = trg.size(1)
-        # nopeak_mask: [1, seq_len, seq_len]
-        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(self.device)
-        trg_mask = trg_mask & nopeak_mask
-        # trg_mask: [batch_size, 1, seq_len, seq_len]
-        return src_mask, trg_mask
+    # def generate_mask(self, src, tar):
+    #     # src_mask: [batch_size, 1, 1, seq_len]
+    #     src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
+    #     # trg_mask: [batch_size, 1, seq_len, 1]
+    #     trg_mask = (tar != 0).unsqueeze(1).unsqueeze(3).to(self.device)
+    #     seq_length = tar.size(1)
+    #     # nopeak_mask: [1, seq_len, seq_len]
+    #     nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(self.device)
+    #     trg_mask = trg_mask & nopeak_mask
+    #     # trg_mask: [batch_size, 1, seq_len, seq_len]
+    #     return src_mask, trg_mask
     
-    def forward(self, src, trg):
-        src_mask, trg_mask = self.generate_mask(src, trg)
+    def make_src_mask(self, src):
+        # src: [batch_size, seq_len]
+        src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
+        # src_mask: [batch_size, 1, 1, seq_len]
+        return src_mask
+    
+    def make_tar_mask(self, tar):
+        # tar = [batch_size, tar_len]
+        tar_mask = (tar != 0).unsqueeze(1).unsqueeze(3).to(self.device)
+        # tar_mask: [batch_size, 1, seq_len, 1]
+        seq_length = tar.size(1)
+        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(self.device)
+        # nopeak_mask: [1, seq_len, seq_len]
+        tar_mask = tar_mask & nopeak_mask
+        # tar_mask: [batch_size, 1, seq_len, seq_len]
+        return tar_mask
+    
+    def forward(self, src, tar):
+        src_mask = self.make_src_mask(src)
+        tar_mask = self.make_tar_mask(tar)
         src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
-        trg_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(trg)))
+        tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
         # src_embedded: [batch_size, seq_len, d_model]
-        # trg_embedded: [batch_size, seq_len, d_model]
+        # tar_embedded: [batch_size, seq_len, d_model]
         enc_output = src_embedded
         for enc_layer in self.encoder_layers:
             enc_output = enc_layer(enc_output, src_mask)
         # enc_ouput: [batch_size, seq_len, d_model]
-        dec_output = trg_embedded
+        dec_output = tar_embedded
         for dec_layer in self.decoder_layers:
-            dec_output = dec_layer(dec_output, enc_output, src_mask, trg_mask)
+            dec_output, attention = dec_layer(dec_output, enc_output, src_mask, tar_mask)
         # dec_output: [batch_size, seq_len, d_model]
+        # attention: [batch_size, n_heads, trg_len, src_len]
         output = self.fc(dec_output)
         # output_shape: [batch_size, seq_len, vocab_size]
-        return output
+        return output, attention

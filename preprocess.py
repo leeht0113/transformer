@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import re
-import torch
 from transformers import AutoTokenizer
 from models import Transformer
 
@@ -22,13 +21,22 @@ def main():
     with zipfile.ZipFile(zipfilename, 'r') as zip_ref:
         zip_ref.extractall(path)
 
-    train = pd.read_csv('fra.txt', names=['src', 'trg', 'lic'], sep='\t')
-    del train['lic']
+    df = pd.read_csv('fra.txt', names=['src', 'tar', 'lic'], sep='\t')
+    del df['lic']
 
-    train['trg'] = train['trg'].apply(lambda x: clean_text(x))
-    train['src'] = train['src'].apply(lambda x: clean_text(x))
+    df['tar'] = df['tar'].apply(lambda x: clean_text(x))
+    df['src'] = df['src'].apply(lambda x: clean_text(x))
 
-    train.to_csv('preprocess.csv', index=False)
+    total_len = len(df)
+    idx = np.random.permutation(total_len)
+    split = int(total_len*0.9)
+    train_df = df.iloc[idx[:split]]
+    train_df.reset_index(inplace=True, drop=True)
+    test_df = df.iloc[idx[split:]]
+    test_df.reset_index(inplace=True, drop=True)
+
+    train_df.to_csv('train_preprocess.csv', index=False)
+    test_df.to_csv('test_preprocess.csv', index=False)
 
 if __name__ == '__main__':
     main()
