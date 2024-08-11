@@ -13,21 +13,46 @@ class InputEmbeddings(nn.Module):
     def forward(self, x):
         return self.embedding(x) * math.sqrt(self.d_model)
     
+# class PositionalEncoding(nn.Module):
+
+#     def __init__(self, d_model, seq_len, device):
+#         super(PositionalEncoding, self).__init__()
+#         pe = torch.zeros(seq_len, d_model, device = device)
+#         position = torch.arange(0, seq_len, dtype = torch.float, device = device).unsqueeze(1)
+#         _2i = torch.arange(0, d_model, step = 2, dtype = torch.float, device = device)
+#         pe[:, ::2] = torch.sin(position/10000**(_2i/d_model))
+#         pe[:, 1::2] = torch.cos(position/10000**(_2i/d_model))
+#         self.register_buffer('pe', pe.unsqueeze(0))
+    
+#     def forward(self, x):
+#         return x + self.pe[:, :x.size(1)]
+
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model, seq_len, device):
-        super(PositionalEncoding, self).__init__()
+    def __init__(self, d_model: int, seq_len: int, dropout: float, device) -> None:
+        super().__init__()
+        self.d_model = d_model
+        self.seq_len = seq_len
+        self.dropout = nn.Dropout(dropout)
+        # Create a matrix of shape (seq_len, d_model)
         pe = torch.zeros(seq_len, d_model, device = device)
-        position = torch.arange(0, seq_len, dtype = torch.float, device = device).unsqueeze(1)
-        _2i = torch.arange(0, d_model, step = 2, dtype = torch.float, device = device)
-        pe[:, ::2] = torch.sin(position/10000**(_2i/d_model))
-        pe[:, 1::2] = torch.cos(position/10000**(_2i/d_model))
-        self.register_buffer('pe', pe.unsqueeze(0))
-    
+        # Create a vector of shape (seq_len)
+        position = torch.arange(0, seq_len, dtype=torch.float, device = device).unsqueeze(1) # (seq_len, 1)
+        # Create a vector of shape (d_model)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype = torch.float, device = device).float() * (-math.log(10000.0) / d_model)) # (d_model / 2)
+        # Apply sine to even indices
+        pe[:, 0::2] = torch.sin(position * div_term) # sin(position * (10000 ** (2i / d_model))
+        # Apply cosine to odd indices
+        pe[:, 1::2] = torch.cos(position * div_term) # cos(position * (10000 ** (2i / d_model))
+        # Add a batch dimension to the positional encoding
+        pe = pe.unsqueeze(0) # (1, seq_len, d_model)
+        # Register the positional encoding as a buffer
+        self.register_buffer('pe', pe)
+
     def forward(self, x):
-        return x + self.pe[:, :x.size(1)]
-
-
+        x = x + (self.pe[:, :x.shape[1], :]).requires_grad_(False) # (batch, seq_len, d_model)
+        return self.dropout(x)
+    
 class MultiHeadAttentionLayer(nn.Module):
 
     def __init__(self, d_model, n_heads, dropout, device):
@@ -151,9 +176,10 @@ class DecoderLayer(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, device):
         super(Transformer, self).__init__()
-        self.encoder_embedding = nn.Embedding(vocab_size, d_model)
-        self.decoder_embedding = nn.Embedding(vocab_size, d_model)
-        self.positional_encoding = PositionalEncoding(d_model, max_seq_length, device)
+        self.encoder_embedding = InputEmbeddings(vocab_size, d_model)
+        self.decoder_embedding = InputEmbeddings(vocab_size, d_model)
+        # self.positional_encoding = PositionalEncoding(d_model, max_seq_length, device)
+        self.positional_encoding = PositionalEncoding(d_model, max_seq_length, dropout, device)
         
         self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])
         self.decoder_layers = nn.ModuleList([DecoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])

@@ -1,5 +1,6 @@
 import pandas as pd
 import torch
+from tqdm import tqdm
 
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, data, tokenizer, max_len):

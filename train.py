@@ -7,7 +7,9 @@ from dataset import dataloader
 from transformers import AutoTokenizer
 import time
 import math
-from tqdm.notebook import tqdm
+from copy import deepcopy
+from tqdm import tqdm
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 def train(model, iterator, optimizer, criterion, device, clip):
     model.train()
@@ -67,7 +69,7 @@ def evaluate(model, iterator, criterion):
             # trg: [7616 (batch_size * (trg_len - 1))]
 
             loss = criterion(output, trg)
-
+            
             epoch_loss += loss.item()
 
     return  epoch_loss / len(iterator)
@@ -80,7 +82,7 @@ def epoch_time(start_time, end_time):
 
 if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
-    print('데이터 로드')
+    print('데이터 로드 중...')
     train_dl, valid_dl = dataloader(tokenizer, max_len = 120, batch_size = 64, train_split = 0.9, valid_split = 0.1)
     print('데이터 로드 완료')
 
@@ -93,6 +95,9 @@ if __name__ == '__main__':
     dropout = 0.1
     n_epochs = 10
     clip = 1
+    early_stopping_patience = 3
+    best_valid_accuracy = 0.0
+    # early_stopping_counter = 0
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
@@ -102,21 +107,46 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.CrossEntropyLoss(ignore_index = tokenizer.pad_token_id)
     best_valid_loss = float('inf')
+    # ReduceLROnPlateau 스케줄러 초기화
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=early_stopping_patience, factor=0.1)
     # train the model through multiple epochs
     for epoch in tqdm(range(n_epochs), total = n_epochs, desc = 'Epoch'):
         start_time = time.time()
-        print('Epoch 시작: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(start_time)))
+        print(f'\nEpoch {epoch + 1} 시작: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(start_time)))
         train_loss = train(model, train_dl, optimizer, criterion, device, clip)
         valid_loss = evaluate(model, valid_dl, criterion)
 
         end_time = time.time()
-        print('Epoch 끝: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(end_time)))
+        print(f'Epoch {epoch + 1} 끝: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(end_time)))
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+        # ReduceLROnPlateau 스케줄러에 현재 검증 손실값 전달
+        scheduler.step(valid_loss)
     
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
-            print('Best model epoch: ', epoch)
-            torch.save(model.state_dict(), 'transformers_french_to_english.pt')
+            early_stopping_counter = 0
+            print('Saving the best model epoch: ', epoch + 1)
+            torch.save(model.state_dict(), f'transformers_french_to_english_{epoch + 1}.pt')
+            # Store the state_dict of the current best model
+            best_model = deepcopy(model.state_dict())
+            best_model_epoch = epoch + 1
+            print("Updated the best model.")
+        else:
+            early_stopping_counter += 1
+
+        # Check for early stopping based on accuracy
+        if scheduler.num_bad_epochs >= scheduler.patience:
+            print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
+            print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):.3f}')
+            print(f'\tValidation Loss: {valid_loss:.3f} | Validation PPL: {math.exp(valid_loss):.3f}')
+            print("Early stopping triggered. No improvement for {} consecutive epochs.".format(early_stopping_patience))
+            if best_model is not None:
+                # save the best model
+                print('saved the best model')
+                torch.save(best_model, f'transformers_french_to_english_{best_model_epoch}_best_model.pt')
+
+            break  # Stop training
 
         print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):.3f}')
