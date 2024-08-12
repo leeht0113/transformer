@@ -40,7 +40,7 @@ def train(model, iterator, optimizer, criterion, device, clip):
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
         optimizer.step()
-        print('\n' + f'{loss.item()}' + '\n')
+        # print('\n' + f'{loss.item()}' + '\n')
         epoch_loss += loss.item()
 
     return epoch_loss / len(iterator)

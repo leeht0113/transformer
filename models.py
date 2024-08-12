@@ -225,10 +225,13 @@ class Transformer(nn.Module):
         tar_mask = self.make_tar_mask(tar)
         # src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
         # tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
-        src_len = src.shape[1]
-        src_pos = torch.arange(0, src_len).unsqueeze(0).repeat(self.batch_size, 1).to(self.device)
-        tar_len = tar.shape[1]
-        tar_pos = torch.arange(0, tar_len).unsqueeze(0).repeat(self.batch_size, 1).to(self.device)
+
+        src_batch_size, src_len = src.size()
+        tar_batch_size, tar_len = tar.size()
+
+        src_pos = torch.arange(0, src_len).unsqueeze(0).repeat(src_batch_size, 1).to(self.device)
+        tar_pos = torch.arange(0, tar_len).unsqueeze(0).repeat(tar_batch_size, 1).to(self.device)
+
         src_embedded = self.dropout(self.encoder_embedding(src) + self.enc_positional_embedding(src_pos))
         tar_embedded = self.dropout(self.decoder_embedding(tar) + self.dec_positional_embedding(tar_pos))
 
