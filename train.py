@@ -40,7 +40,7 @@ def train(model, iterator, optimizer, criterion, device, clip):
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
         optimizer.step()
-        # print(loss.item())
+        print('\n' + f'{loss.item()}' + '\n')
         epoch_loss += loss.item()
 
     return epoch_loss / len(iterator)
@@ -80,11 +80,12 @@ def epoch_time(start_time, end_time):
     elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
     return elapsed_mins, elapsed_secs
 
+def initialize_weights(m):
+    if hasattr(m, 'weight') and m.weight.dim() > 1:
+        nn.init.xavier_uniform_(m.weight.data)
+
 if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
-    print('데이터 로드 중...')
-    train_dl, valid_dl = dataloader(tokenizer, max_len = 120, batch_size = 64, train_split = 0.9, valid_split = 0.1)
-    print('데이터 로드 완료')
 
     vocab_size = tokenizer.vocab_size + 1
     d_model = 512
@@ -97,11 +98,19 @@ if __name__ == '__main__':
     clip = 1
     early_stopping_patience = 3
     best_valid_accuracy = 0.0
+    batch_size = 64
+    train_split = 0.9
+    valid_split = 0.1
     # early_stopping_counter = 0
+
+    print('데이터 로드 중...')
+    train_dl, valid_dl = dataloader(tokenizer, max_len = max_seq_length, batch_size = batch_size, train_split = train_split, valid_split = valid_split)
+    print('데이터 로드 완료')
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
-    model = Transformer(vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, device).to(device)
+    model = Transformer(vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device).to(device)
+    model.apply(initialize_weights)
 
     learning_rate = 0.0005
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)

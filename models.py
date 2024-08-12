@@ -174,19 +174,21 @@ class DecoderLayer(nn.Module):
         return x, attention
 
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, device):
+    def __init__(self, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device):
         super(Transformer, self).__init__()
         self.encoder_embedding = InputEmbeddings(vocab_size, d_model)
         self.decoder_embedding = InputEmbeddings(vocab_size, d_model)
         # self.positional_encoding = PositionalEncoding(d_model, max_seq_length, device)
-        self.positional_encoding = PositionalEncoding(d_model, max_seq_length, dropout, device)
+        # self.positional_encoding = PositionalEncoding(d_model, max_seq_length, dropout, device)
+        self.enc_positional_embedding = nn.Embedding(max_seq_length, d_model)
+        self.dec_positional_embedding = nn.Embedding(max_seq_length, d_model)
         
         self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])
         self.decoder_layers = nn.ModuleList([DecoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])
 
         self.fc = nn.Linear(d_model, vocab_size)
         self.dropout = nn.Dropout(dropout)
-    
+        self.batch_size = batch_size
         self.device = device
 
     # def generate_mask(self, src, tar):
@@ -221,8 +223,15 @@ class Transformer(nn.Module):
     def forward(self, src, tar):
         src_mask = self.make_src_mask(src)
         tar_mask = self.make_tar_mask(tar)
-        src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
-        tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
+        # src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
+        # tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
+        src_len = src.shape[1]
+        src_pos = torch.arange(0, src_len).unsqueeze(0).repeat(self.batch_size, 1).to(self.device)
+        tar_len = tar.shape[1]
+        tar_pos = torch.arange(0, tar_len).unsqueeze(0).repeat(self.batch_size, 1).to(self.device)
+        src_embedded = self.dropout(self.encoder_embedding(src) + self.enc_positional_embedding(src_pos))
+        tar_embedded = self.dropout(self.decoder_embedding(tar) + self.dec_positional_embedding(tar_pos))
+
         # src_embedded: [batch_size, seq_len, d_model]
         # tar_embedded: [batch_size, seq_len, d_model]
         enc_output = src_embedded
