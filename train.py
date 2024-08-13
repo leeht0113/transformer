@@ -40,7 +40,9 @@ def train(model, iterator, optimizer, criterion, device, clip):
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
         optimizer.step()
+
         # print('\n' + f'{loss.item()}' + '\n')
+        
         epoch_loss += loss.item()
 
     return epoch_loss / len(iterator)
@@ -69,7 +71,7 @@ def evaluate(model, iterator, criterion):
             # trg: [7616 (batch_size * (trg_len - 1))]
 
             loss = criterion(output, trg)
-            
+        
             epoch_loss += loss.item()
 
     return  epoch_loss / len(iterator)
@@ -112,8 +114,10 @@ if __name__ == '__main__':
     model = Transformer(vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device).to(device)
     model.apply(initialize_weights)
 
-    learning_rate = 0.0005
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # learning_rate = 0.0005
+    learning_rate = 0.00001
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr = learning_rate)
     criterion = nn.CrossEntropyLoss(ignore_index = tokenizer.pad_token_id)
     best_valid_loss = float('inf')
     # ReduceLROnPlateau 스케줄러 초기화

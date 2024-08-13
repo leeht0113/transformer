@@ -164,7 +164,7 @@ class DecoderLayer(nn.Module):
         # attn_output: [batch_size, seq_len, d_model]
         x = self.norm1(x + self.dropout(attn_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
-        attn_output, attention = self.cross_attn(x, enc_output, enc_output, src_mask)
+        attn_output, attention = self.cross_attn(x, enc_output, enc_output, src_mask) # query: x, key: enc_output, value: enc_output
         x = self.norm2(x + self.dropout(attn_output)) # Add & Norm
         # x: [batch_size, seq_len, d_model]
         ff_output = self.feed_forward(x)
@@ -178,10 +178,9 @@ class Transformer(nn.Module):
         super(Transformer, self).__init__()
         self.encoder_embedding = InputEmbeddings(vocab_size, d_model)
         self.decoder_embedding = InputEmbeddings(vocab_size, d_model)
-        # self.positional_encoding = PositionalEncoding(d_model, max_seq_length, device)
-        # self.positional_encoding = PositionalEncoding(d_model, max_seq_length, dropout, device)
-        self.enc_positional_embedding = nn.Embedding(max_seq_length, d_model)
-        self.dec_positional_embedding = nn.Embedding(max_seq_length, d_model)
+        self.positional_encoding = PositionalEncoding(d_model, max_seq_length, dropout, device)
+        # self.enc_positional_embedding = nn.Embedding(max_seq_length, d_model)
+        # self.dec_positional_embedding = nn.Embedding(max_seq_length, d_model)
         
         self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])
         self.decoder_layers = nn.ModuleList([DecoderLayer(d_model, num_heads, d_ff, dropout, device) for _ in range(num_layers)])
@@ -223,17 +222,20 @@ class Transformer(nn.Module):
     def forward(self, src, tar):
         src_mask = self.make_src_mask(src)
         tar_mask = self.make_tar_mask(tar)
-        # src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
-        # tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
+        src_embedded = self.dropout(self.positional_encoding(self.encoder_embedding(src)))
+        tar_embedded = self.dropout(self.positional_encoding(self.decoder_embedding(tar)))
 
-        src_batch_size, src_len = src.size()
-        tar_batch_size, tar_len = tar.size()
+        # src_batch_size, src_len = src.size()
+        # tar_batch_size, tar_len = tar.size()
 
-        src_pos = torch.arange(0, src_len).unsqueeze(0).repeat(src_batch_size, 1).to(self.device)
-        tar_pos = torch.arange(0, tar_len).unsqueeze(0).repeat(tar_batch_size, 1).to(self.device)
+        # src_pos = torch.arange(0, src_len).unsqueeze(0).repeat(src_batch_size, 1).to(self.device)
+        # tar_pos = torch.arange(0, tar_len).unsqueeze(0).repeat(tar_batch_size, 1).to(self.device)
 
-        src_embedded = self.dropout(self.encoder_embedding(src) + self.enc_positional_embedding(src_pos))
-        tar_embedded = self.dropout(self.decoder_embedding(tar) + self.dec_positional_embedding(tar_pos))
+        # src_embedded = self.dropout(self.encoder_embedding(src) + self.enc_positional_embedding(src_pos))
+        # tar_embedded = self.dropout(self.decoder_embedding(tar) + self.dec_positional_embedding(tar_pos))
+
+        # src_embedded = self.dropout(self.encoder_embedding(src) + src_embedded)
+        # tar_embedded = self.dropout(self.decoder_embedding(tar) + tar_embedded)
 
         # src_embedded: [batch_size, seq_len, d_model]
         # tar_embedded: [batch_size, seq_len, d_model]

@@ -1,7 +1,6 @@
 fra-eng.zip
-fra.txt
-_about.txt
 *.csv
 *.ipynb_checkpoints
 *.__pychache__
 *.pt
+*.txt

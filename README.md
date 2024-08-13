@@ -9,6 +9,7 @@
     - https://github.com/hkproj/pytorch-transformer
     - https://happy-jihye.github.io/nlp/nlp-8/#training
     - https://github.com/ndb796/Deep-Learning-Paper-Review-and-Practice/blob/master/code_practices/Attention_is_All_You_Need_Tutorial_(German_English).ipynb
+    - https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891 (Tokenizer)
 
 * 활용 Dataset
-    - http://www.manythings.org/anki/ (fra-eng.zip) 
+    - http://www.manythings.org/anki/ (fra-eng.zip)
