@@ -1,6 +1,7 @@
 fra-eng.zip
 *.csv
 *.ipynb_checkpoints
-*.__pychache__
+__pychache__
 *.pt
 *.txt
+*.pkl

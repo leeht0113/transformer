@@ -64,11 +64,16 @@ class MultiHeadAttentionLayer(nn.Module):
         self.n_heads = n_heads # head 수
         self.head_dim = d_model // n_heads # head 차원
 
-        self.W_q = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_q
-        self.W_k = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_k
-        self.W_v = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_v
+        # self.W_q = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_q
+        # self.W_k = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_k
+        # self.W_v = nn.Linear(d_model, d_model, bias = False) # batch_size x n x d_v
 
-        self.W_o = nn.Linear(d_model, d_model, bias = False) # concat 후 linear, 각 head가 따로 학습한 정보를 취합하는 용도
+        self.W_q = nn.Linear(d_model, d_model) # batch_size x n x d_q
+        self.W_k = nn.Linear(d_model, d_model) # batch_size x n x d_k
+        self.W_v = nn.Linear(d_model, d_model) # batch_size x n x d_v
+
+        # self.W_o = nn.Linear(d_model, d_model, bias = False) # concat 후 linear, 각 head가 따로 학습한 정보를 취합하는 용도
+        self.W_o = nn.Linear(d_model, d_model) # concat 후 linear, 각 head가 따로 학습한 정보를 취합하는 용도
 
         self.dropout = nn.Dropout(dropout)
 

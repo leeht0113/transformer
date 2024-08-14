@@ -8,7 +8,8 @@ from transformers import AutoTokenizer
 import time
 import math
 from copy import deepcopy
-from tqdm import tqdm
+# from tqdm import tqdm
+from tqdm.notebook import tqdm
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 def train(model, iterator, optimizer, criterion, device, clip):
@@ -87,7 +88,8 @@ def initialize_weights(m):
         nn.init.xavier_uniform_(m.weight.data)
 
 if __name__ == '__main__':
-    tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
+    # tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
+    tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
 
     vocab_size = tokenizer.vocab_size + 1
     d_model = 512
@@ -116,12 +118,12 @@ if __name__ == '__main__':
 
     # learning_rate = 0.0005
     learning_rate = 0.00001
-    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    optimizer = optim.AdamW(model.parameters(), lr = learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # optimizer = optim.AdamW(model.parameters(), lr = learning_rate)
     criterion = nn.CrossEntropyLoss(ignore_index = tokenizer.pad_token_id)
     best_valid_loss = float('inf')
     # ReduceLROnPlateau 스케줄러 초기화
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=early_stopping_patience, factor=0.1)
+    # scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=early_stopping_patience, factor=0.1)
     # train the model through multiple epochs
     for epoch in tqdm(range(n_epochs), total = n_epochs, desc = 'Epoch'):
         start_time = time.time()
@@ -134,7 +136,7 @@ if __name__ == '__main__':
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
         # ReduceLROnPlateau 스케줄러에 현재 검증 손실값 전달
-        scheduler.step(valid_loss)
+        # scheduler.step(valid_loss)
     
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
@@ -149,7 +151,8 @@ if __name__ == '__main__':
             early_stopping_counter += 1
 
         # Check for early stopping based on accuracy
-        if scheduler.num_bad_epochs >= scheduler.patience:
+        # if scheduler.num_bad_epochs >= scheduler.patience:
+        if early_stopping_counter >= early_stopping_patience:
             print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
             print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):.3f}')
             print(f'\tValidation Loss: {valid_loss:.3f} | Validation PPL: {math.exp(valid_loss):.3f}')

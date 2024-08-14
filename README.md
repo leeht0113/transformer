@@ -10,6 +10,7 @@
     - https://happy-jihye.github.io/nlp/nlp-8/#training
     - https://github.com/ndb796/Deep-Learning-Paper-Review-and-Practice/blob/master/code_practices/Attention_is_All_You_Need_Tutorial_(German_English).ipynb
     - https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891 (Tokenizer)
+    - https://huggingface.co/rajbhirud/eng-to-fra-model
 
 * 활용 Dataset
     - http://www.manythings.org/anki/ (fra-eng.zip)
