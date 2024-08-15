@@ -48,7 +48,7 @@ def train(model, iterator, optimizer, criterion, device, clip):
 
     return epoch_loss / len(iterator)
 
-def evaluate(model, iterator, criterion):
+def evaluate(model, iterator, criterion, device):
     model.eval()
 
     epoch_loss = 0
@@ -90,7 +90,7 @@ def initialize_weights(m):
 if __name__ == '__main__':
     # tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
     tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
-
+    tokenizer.add_special_tokens({'bos_token':'<s>'})
     vocab_size = tokenizer.vocab_size + 1
     d_model = 512
     num_heads = 8
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     clip = 1
     early_stopping_patience = 3
     best_valid_accuracy = 0.0
-    batch_size = 64
+    batch_size =32
     train_split = 0.9
     valid_split = 0.1
     # early_stopping_counter = 0
@@ -118,31 +118,31 @@ if __name__ == '__main__':
 
     # learning_rate = 0.0005
     learning_rate = 0.00001
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    # optimizer = optim.AdamW(model.parameters(), lr = learning_rate)
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr = learning_rate)
     criterion = nn.CrossEntropyLoss(ignore_index = tokenizer.pad_token_id)
     best_valid_loss = float('inf')
     # ReduceLROnPlateau 스케줄러 초기화
-    # scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=early_stopping_patience, factor=0.1)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=early_stopping_patience, factor=0.1)
     # train the model through multiple epochs
     for epoch in tqdm(range(n_epochs), total = n_epochs, desc = 'Epoch'):
         start_time = time.time()
         print(f'\nEpoch {epoch + 1} 시작: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(start_time)))
         train_loss = train(model, train_dl, optimizer, criterion, device, clip)
-        valid_loss = evaluate(model, valid_dl, criterion)
+        valid_loss = evaluate(model, valid_dl, criterion, device)
 
         end_time = time.time()
         print(f'Epoch {epoch + 1} 끝: ', time.strftime("%Y년 %m월 %d일 %H시 %M분 %S초", time.localtime(end_time)))
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
         # ReduceLROnPlateau 스케줄러에 현재 검증 손실값 전달
-        # scheduler.step(valid_loss)
+        scheduler.step(valid_loss)
     
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
             early_stopping_counter = 0
             print('Saving the best model epoch: ', epoch + 1)
-            torch.save(model.state_dict(), f'transformers_french_to_english_{epoch + 1}.pt')
+            torch.save(model.state_dict(), f'transformers_english_to_french_{epoch + 1}.pt')
             # Store the state_dict of the current best model
             best_model = deepcopy(model.state_dict())
             best_model_epoch = epoch + 1
@@ -151,16 +151,16 @@ if __name__ == '__main__':
             early_stopping_counter += 1
 
         # Check for early stopping based on accuracy
-        # if scheduler.num_bad_epochs >= scheduler.patience:
-        if early_stopping_counter >= early_stopping_patience:
+        if scheduler.num_bad_epochs >= scheduler.patience:
+        # if early_stopping_counter >= early_stopping_patience:
             print(f'Epoch: {epoch + 1:02} | Time: {epoch_mins}m {epoch_secs}s')
             print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):.3f}')
             print(f'\tValidation Loss: {valid_loss:.3f} | Validation PPL: {math.exp(valid_loss):.3f}')
-            print("Early stopping triggered. No improvement for {} consecutive epochs.".format(early_stopping_patience))
+            print("Early stopping triggered. No improvement for {} consecutive epochs.".format(scheduler.patience))
             if best_model is not None:
                 # save the best model
                 print('saved the best model')
-                torch.save(best_model, f'transformers_french_to_english_{best_model_epoch}_best_model.pt')
+                torch.save(best_model, f'transformers_english_to_french_{best_model_epoch}_best_model.pt')
 
             break  # Stop training
 

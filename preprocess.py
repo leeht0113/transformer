@@ -25,9 +25,9 @@ def main():
     del df['lic']
 
     df['tar'] = df['tar'].apply(lambda x: clean_text(x))
-    df['tar'] = df['tar'].apply(lambda x: x.lower())
+    # df['tar'] = df['tar'].apply(lambda x: x.lower())
     df['src'] = df['src'].apply(lambda x: clean_text(x))
-    df['src'] = df['src'].apply(lambda x: x.lower())
+    # df['src'] = df['src'].apply(lambda x: x.lower())
 
     total_len = len(df)
     idx = np.random.permutation(total_len)

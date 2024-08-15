@@ -18,7 +18,6 @@ class CustomDataset(torch.utils.data.Dataset):
     
 def dataloader(tokenizer, max_len, batch_size, train_split, valid_split):
     tokenizer = tokenizer
-    tokenizer.add_special_tokens({'bos_token':'<s>'})
     train = pd.read_csv('train_preprocess.csv')
     custom_ds = CustomDataset(train, tokenizer, max_len)
     train_ds, valid_ds = torch.utils.data.random_split(custom_ds, [train_split, valid_split])
