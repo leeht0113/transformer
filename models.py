@@ -83,24 +83,26 @@ class MultiHeadAttentionLayer(nn.Module):
         batch_size, seq_length, d_model = x.size() # [배치 크기, 문장 길이, 각 단어의 차원]
         # d_model(전체 차원)을 지정한 head의 수로 나눔
         return x.view(batch_size, seq_length, self.n_heads, self.head_dim).transpose(1, 2) 
+        # [배치 크기, head 개수, 문장 길이, 각 헤드의 각 단어 차원]
     
     def scaled_dot_product_attention(self, q, k, v, mask=None):
         # q: [batch_size, n_head, seq_len, dimension]
         # k.transpose(-2, -1): [batch_size, n_head, dimension, seq_len]
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) / self.scale
-        # attn_scores: [batch_size, n_head, seq_len, seq_len]
+        # attn_scores: [batch_size, n_head, q_seq_len, k_seq_len]
         if mask is not None: # masked_multi_head_attention
             attn_scores = attn_scores.masked_fill(mask == 0, -1e9) # 음수 무한대로 줘서 softmax 취할시 0으로 변하게 함
         attn_probs = torch.softmax(attn_scores, dim=-1)
-        attn_probs = self.dropout(attn_probs)
-        # attn_probs: [batch_size, n_head, seq_len, seq_len]
+        # attn_probs = self.dropout(attn_probs)
+        # attn_probs: [batch_size, n_head, q_seq_len, k_seq_len], decoder일 경우 query는 tar 문장, key는 src 문장
         # v: [batch_size, n_head, seq_len, dimension]
         output = torch.matmul(attn_probs, v) # 각 단어의 attention 값을 담은 value
         # output: [batch_size, n_head, seq_len, dimension]
         return output, attn_probs
     
     def combine_heads(self, x):
-        batch_size, _, seq_length, d_k = x.size()
+        batch_size, _, seq_length, d_k = x.size() # [batch_size, n_head, seq_len, dimension]
+        # [batch_size, seq_length, dimension]
         return x.transpose(1, 2).contiguous().view(batch_size, seq_length, self.d_model) 
     
     def forward(self, query, key, value, mask=None):
@@ -110,7 +112,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # query와 value를 내적한 값의 scaled된 attention 값
         attn_output, attention = self.scaled_dot_product_attention(query, key, value, mask)
         # attn_output: [batch_size, n_head, seq_len, dimension]
-        # self.combine_heads(attn_output) -> [batch_size, seq_len, n_head x dimension]
+        # self.combine_heads(attn_output) -> [batch_size, seq_len, n_head, dimension]
         output = self.W_o(self.combine_heads(attn_output))
         # output: [batch_size, seq_len, d_model]
         return output, attention
@@ -179,7 +181,7 @@ class DecoderLayer(nn.Module):
         return x, attention
 
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device):
+    def __init__(self, tokenizer, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device):
         super(Transformer, self).__init__()
         self.encoder_embedding = InputEmbeddings(vocab_size, d_model)
         self.decoder_embedding = InputEmbeddings(vocab_size, d_model)
@@ -195,6 +197,8 @@ class Transformer(nn.Module):
         self.batch_size = batch_size
         self.device = device
 
+        self.pad_idx = tokenizer.pad_token_id
+
     # def generate_mask(self, src, tar):
     #     # src_mask: [batch_size, 1, 1, seq_len]
     #     src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
@@ -209,19 +213,30 @@ class Transformer(nn.Module):
     
     def make_src_mask(self, src):
         # src: [batch_size, seq_len]
-        src_mask = (src != 0).unsqueeze(1).unsqueeze(2)
+        src_mask = (src != self.pad_idx).unsqueeze(1).unsqueeze(2)
         # src_mask: [batch_size, 1, 1, seq_len]
         return src_mask
     
+    # def make_tar_mask(self, tar):
+    #     # tar = [batch_size, tar_len]
+    #     tar_mask = (tar != self.pad_idx).unsqueeze(1).unsqueeze(3).to(self.device)
+    #     # tar_mask: [batch_size, 1, seq_len, 1]
+    #     seq_length = tar.size(1)
+    #     nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(self.device)
+    #     # nopeak_mask: [1, seq_len, seq_len]
+    #     tar_mask = tar_mask & nopeak_mask
+    #     # tar_mask: [batch_size, 1, seq_len, seq_len]
+    #     return tar_mask
+
     def make_tar_mask(self, tar):
-        # tar = [batch_size, tar_len]
-        tar_mask = (tar != 0).unsqueeze(1).unsqueeze(3).to(self.device)
-        # tar_mask: [batch_size, 1, seq_len, 1]
-        seq_length = tar.size(1)
-        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool().to(self.device)
-        # nopeak_mask: [1, seq_len, seq_len]
-        tar_mask = tar_mask & nopeak_mask
-        # tar_mask: [batch_size, 1, seq_len, seq_len]
+        # tar: [batch_size, tar_len]
+        tar_pad_mask = (tar != self.pad_idx).unsqueeze(1).unsqueeze(2)
+        # [batch_size, 1, 1, tar_len]
+        tar_len = tar.shape[1]
+        tar_sub_mask = torch.tril(torch.ones((tar_len, tar_len), device = self.device)).bool()
+        # tar_sub_mask: [tar_len, tar_len]
+        tar_mask = tar_pad_mask & tar_sub_mask
+        # tar_mask: [batch_size, 1, tar_len, tar_len]
         return tar_mask
     
     def forward(self, src, tar):

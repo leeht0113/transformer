@@ -11,6 +11,7 @@ from copy import deepcopy
 # from tqdm import tqdm
 from tqdm.notebook import tqdm
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import re
 
 def train(model, iterator, optimizer, criterion, device, clip):
     model.train()
@@ -87,8 +88,15 @@ def initialize_weights(m):
     if hasattr(m, 'weight') and m.weight.dim() > 1:
         nn.init.xavier_uniform_(m.weight.data)
 
+def define_argparser():
+    p = argparse.ArgumentParser()
+    p.add_argument("--model", default=None, type = str)
+    config = p.parse_args()
+    return config
+
 if __name__ == '__main__':
     # tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
+    config = define_argparser()
     tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
     tokenizer.add_special_tokens({'bos_token':'<s>'})
     vocab_size = tokenizer.vocab_size + 1
@@ -106,15 +114,22 @@ if __name__ == '__main__':
     train_split = 0.9
     valid_split = 0.1
     # early_stopping_counter = 0
+    
 
     print('데이터 로드 중...')
     train_dl, valid_dl = dataloader(tokenizer, max_len = max_seq_length, batch_size = batch_size, train_split = train_split, valid_split = valid_split)
     print('데이터 로드 완료')
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    model = Transformer(tokenizer, vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device).to(device)
+    if config.model is not None:
+        base_directory = './'
+        model.load_state_dict(torch.load(base_directory + config.model, weights_only=True))
+    else:
+        model.apply(initialize_weights)
+    # base_directory = './'
+    # model.load_state_dict(torch.load(base_directory + 'transformers_english_to_french_20.pt', weights_only=True))
 
-    model = Transformer(vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout, batch_size, device).to(device)
-    model.apply(initialize_weights)
 
     # learning_rate = 0.0005
     learning_rate = 0.00001
@@ -137,15 +152,24 @@ if __name__ == '__main__':
 
         # ReduceLROnPlateau 스케줄러에 현재 검증 손실값 전달
         scheduler.step(valid_loss)
-    
+
+        if config.model is not None:
+            model_epoch = int(re.sub(r'[^0-9]', '', config.model))
+
         if valid_loss < best_valid_loss:
             best_valid_loss = valid_loss
             early_stopping_counter = 0
-            print('Saving the best model epoch: ', epoch + 1)
-            torch.save(model.state_dict(), f'transformers_english_to_french_{epoch + 1}.pt')
+            
+            if config.model is not None:
+                print('Saving the best model epoch: ', model_epoch + epoch + 1)
+                torch.save(model.state_dict(), f'transformers_english_to_french_{model_epoch + epoch + 1}.pt')
+                best_model_epoch = model_epoch + epoch + 1
+            else:
+                print('Saving the best model epoch: ', epoch + 1)
+                torch.save(model.state_dict(), f'transformers_english_to_french_{epoch + 1}.pt')
+                best_model_epoch = epoch + 1
             # Store the state_dict of the current best model
             best_model = deepcopy(model.state_dict())
-            best_model_epoch = epoch + 1
             print("Updated the best model.")
         else:
             early_stopping_counter += 1
