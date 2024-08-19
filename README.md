@@ -14,3 +14,6 @@
 
 * 활용 Dataset
     - http://www.manythings.org/anki/ (fra-eng.zip)
+
+* 활용 토크나이저
+    - https://huggingface.co/Helsinki-NLP/opus-mt-en-fr 

@@ -17,7 +17,7 @@ def train(model, iterator, optimizer, criterion, device, clip):
     model.train()
     epoch_loss = 0
 
-    for i, batch in tqdm(enumerate(iterator), total = len(iterator), desc = 'train batch iteration'):
+    for batch in tqdm(iterator, total = len(iterator), desc = 'train batch iteration'):
         src = batch[0].to(device)
         trg = batch[1].to(device)
 
@@ -55,7 +55,7 @@ def evaluate(model, iterator, criterion, device):
     epoch_loss = 0
 
     with torch.no_grad():
-        for i, batch in tqdm(enumerate(iterator), total = len(iterator), desc = 'valid batch iteration'):
+        for batch in tqdm(iterator, total = len(iterator), desc = 'valid batch iteration'):
             src = batch[0].to(device)
             trg = batch[1].to(device)
 
@@ -115,7 +115,6 @@ if __name__ == '__main__':
     valid_split = 0.1
     # early_stopping_counter = 0
     
-
     print('데이터 로드 중...')
     train_dl, valid_dl = dataloader(tokenizer, max_len = max_seq_length, batch_size = batch_size, train_split = train_split, valid_split = valid_split)
     print('데이터 로드 완료')
@@ -127,9 +126,6 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(base_directory + config.model, weights_only=True))
     else:
         model.apply(initialize_weights)
-    # base_directory = './'
-    # model.load_state_dict(torch.load(base_directory + 'transformers_english_to_french_20.pt', weights_only=True))
-
 
     # learning_rate = 0.0005
     learning_rate = 0.00001

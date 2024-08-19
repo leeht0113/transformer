@@ -259,6 +259,7 @@ class Transformer(nn.Module):
 
         # src_embedded: [batch_size, seq_len, d_model]
         # tar_embedded: [batch_size, seq_len, d_model]
+        
         enc_output = src_embedded
         for enc_layer in self.encoder_layers:
             enc_output = enc_layer(enc_output, src_mask)
